@@ -7,13 +7,13 @@ Used to connect to an arm, and forward and ros messages received and
 
 import rclpy
 import socket
-import struct
+import struct 
 
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 
 from rs_msgs.msg import Packet
-from rs_protocol import RSProtocol, create_socket_connection
+from rs_protocol import RSProtocol, PacketID, create_socket_connection
 
 
 class RSPassthroughNode(Node):
@@ -50,8 +50,11 @@ class RSPassthroughNode(Node):
     def tx_transmit(self, packet):
         device_id = packet.device_id
         packet_id = packet.packet_id
-        data = list(packet.data)
-        self.get_logger().debug("Transmitting {}, {}, {}".format(device_id, 
+        if packet_id == PacketID.VELOCITY | packet_id == PacketID.POSITION:
+            data = struct.unpack('f', packet.data)[0]
+        else:
+            data = list(packet.data)
+        self.get_logger().info("Transmitting {}, {}, {}".format(device_id, 
                                                                  packet_id, 
                                                                  data))
         self.get_logger().info("Data: {}".format(data))
@@ -63,23 +66,22 @@ class RSPassthroughNode(Node):
         # rate = rospy.Rate(10000)
         try:
             
-            packets = self.rs_protocol.read()
+            raw_packets = self.rs_protocol.read_raw()
         except socket.error as e:
             self.get_logger().error("Error reading from socket: {}".format(e))
             return
         
-        if packets:
-            self.get_logger().info("Packets: {}".format(packets))
-            for packet in packets:
+        if raw_packets:
+            self.get_logger().info("Packets: {}".format(raw_packets))
+            for packet in raw_packets:
                 device_id = packet[0]
                 packet_id = packet[1]
                 data = packet[2]
-                byte_data = struct.pack('<' + 'f' * len(data), *data)
-                
+
                 ros_packet = Packet()
                 ros_packet.device_id = device_id
                 ros_packet.packet_id = packet_id
-                ros_packet.data = list(byte_data)
+                ros_packet.data = list(data)
                 # print(data)
                 # self.get_logger().info("Publishing {}".format(ros_packet))
                 self.rx_publisher.publish(ros_packet)
