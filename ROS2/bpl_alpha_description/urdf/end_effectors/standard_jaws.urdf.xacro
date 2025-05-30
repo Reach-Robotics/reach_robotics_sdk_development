@@ -19,6 +19,11 @@
                 </geometry>
                 <material name="${name}_black"/>
             </visual>
+            <inertial>
+                <origin xyz="2 0 0" />
+                <mass value="1.0" />
+                <inertia  ixx="0.001" ixy="0.0"  ixz="0.0"  iyy="0.001"  iyz="0.0"  izz="0.0001" />
+            </inertial>
         </link>
 
         <link name="${name}_rs1_130_link">
@@ -31,10 +36,16 @@
             </visual>
             <collision>
                 <geometry>
-                    <box size="0.012 0.03 0.09"/>
+                    <mesh filename="package://bpl_alpha_description/meshes/end_effectors/RS1-130.stl"/>
+                    <!-- <box size="0.012 0.03 0.09"/> -->
                 </geometry>
                 <origin xyz="0.0 -0.008 0.045" rpy="0 0 0"/>
             </collision>
+            <inertial>
+                <origin xyz="2 0 0" />
+                <mass value="1.0" />
+                <inertia  ixx="0.001" ixy="0.0"  ixz="0.0"  iyy="0.001"  iyz="0.0"  izz="0.0001" />
+            </inertial>
         </link>
 
         <joint name="${name}_rs1_130_joint" type="revolute">
@@ -59,10 +70,16 @@
 
             <collision>
                 <geometry>
-                    <box size="0.012 0.03 0.09"/>
+                    <mesh filename="package://bpl_alpha_description/meshes/end_effectors/RS1-139.stl"/>
+                    <!-- <box size="0.012 0.03 0.09"/> -->
                 </geometry>
                 <origin xyz="0.0 0.008 0.045" rpy="0 0 0"/>
             </collision>
+            <inertial>
+                <origin xyz="2 0 0" />
+                <mass value="1.0" />
+                <inertia  ixx="0.001" ixy="0.0"  ixz="0.0"  iyy="0.001"  iyz="0.0"  izz="0.0001" />
+            </inertial>
         </link>
 
         <joint name="${name}_rs1_139_joint" type="revolute">

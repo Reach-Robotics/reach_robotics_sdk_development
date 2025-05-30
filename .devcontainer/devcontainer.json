@@ -5,7 +5,7 @@
 	"context": "..",
 
   // // ROS 2 dev environment
-	"dockerFile": "./foxy-dockerfile",
+	"dockerFile": "./humble-dockerfile",
   "build": {
     "context": "..",
     "args": {
