@@ -1,0 +1,25 @@
+moveit_setup_assistant_config:
+  urdf:
+    package: bpl_alpha_test
+    relative_path: urdf/alpha_5.urdf.xacro
+  srdf:
+    relative_path: config/alpha_5.srdf
+  package_settings:
+    author_name: Reach Robotics
+    author_email: michelecalabria80@gmail.com
+    generated_timestamp: 1754275564
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity
+  modified_urdf:
+    xacros:
+      - control_xacro
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity
