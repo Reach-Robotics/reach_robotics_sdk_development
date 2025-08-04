@@ -11,7 +11,7 @@ def generate_launch_description():
 
     use_sim_time = LaunchConfiguration('use_sim_time', default='false')
     pkg_share = get_package_share_directory('bpl_alpha_description')
-    urdf_file_name = 'urdf/RA_2141_example.urdf.xacro'
+    urdf_file_name = 'urdf/alpha_5.urdf.xacro'
     urdf_path = os.path.join(pkg_share, urdf_file_name)
 
     rviz_config_file = os.path.join(pkg_share, 'rviz/rviz.rviz')
@@ -45,11 +45,3 @@ def generate_launch_description():
             arguments=['-d', rviz_config_file]
         )
     ])
-
-<launch>
-    <param name="robot_description" command="$(find xacro)/xacro '$(find bpl_alpha_description)/urdf/RA_2141_example.urdf.xacro'"/>
-    <node name="joint_state_publisher_simulated" pkg="joint_state_publisher_gui" type="joint_state_publisher_gui">
-    </node>
-    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
-    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find bpl_alpha_description)/rviz/rviz.rviz"/>
-</launch>
