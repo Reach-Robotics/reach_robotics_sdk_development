@@ -1,45 +1,14 @@
 #include <stdio.h>
-#include <stdint.h>
 #include <dlfcn.h>
 #include <string.h>
 #include <termios.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <stdlib.h>
 #include <time.h>
-#include <stdbool.h>
 
-struct packet {
-    uint8_t length;   // len(data) + 4
-    uint8_t address;  // device_id
-    uint16_t code;    // packet_id
-    uint16_t crc;
-    uint8_t data[64];
-    uint8_t transmitData[64];
-    uint8_t protocol;
-    uint8_t option;
-    uint8_t useOption;
-    uint16_t receiveRegister;
-    uint8_t totalFrames;
-};
+#include "alpha_5_hardware/alpha_5_driver.h"
 
-#define SERIAL_BUFFER_SIZE 256
-#define BAUDRATE 115200
-
-// Function declarations
-int open_serial_port(const char* device);
-ssize_t write_serial_data(int fd, const uint8_t* data, size_t length);
-
-typedef int8_t (*coms_encodePacket_fn)(struct packet* packet, uint8_t address, uint16_t code, uint8_t length, uint8_t* buffer, uint8_t c_option);
-typedef int8_t (*coms_decodePacket_fn)(struct packet* dest_packet, uint8_t* src_buffer, uint8_t src_length);
-
-struct init_ {
-    void* libhandle;                         // The loaded shared library
-    coms_encodePacket_fn encode_func;        // Pointer to encode function
-    coms_decodePacket_fn decode_func;        // Pointer to decode function
-    int serial_fd;                           // File descriptor for open serial port
-};
 
 void* load_rs_protocol_library() {
     // const char* lib_path = "/home/michele/reach_ws/src/reach_robotics_sdk/rs_protocol/lib/librs_protocol_linux_x86_64.so";
@@ -417,34 +386,6 @@ int sendPosition(struct init_* ctx, int deviceID, float posData, size_t length, 
     return 1;
 }
 
-int main() {
-    struct init_ ctx = init("/dev/ttyUSB0");
-    if (!ctx.libhandle || !ctx.encode_func || !ctx.decode_func || ctx.serial_fd < 0) {
-        fprintf(stderr, "Initialization failed.\n");
-        return 1;
-    }
-
-    int device = 0x01;
-    float position = 9.8f;
-    int packet_id = 0x03; // position id
-    sendPosition(&ctx, device, position, 1, 100);
-    request(&ctx, device, packet_id, 1, 50);
-
-    // sendPosition(&ctx, device, 0, 1, 50);
-    // sleepExec(2000);
-    // for (int i = 0; i < 13; i++) {
-    //     float position = i * 1.0f; 
-    //     sleepExec(10);
-    //     sendPosition(&ctx, device, position, 1, 50);
-    // }
-    // sleepExec(2000);
-    // for (int i = 13; i > 0; i--) {
-    //     float position = i * 1.0f; 
-    //     sleepExec(10);
-    //     sendPosition(&ctx, device, position, 1, 50);
-    // }
-
-}
 
 
 
