@@ -26,7 +26,7 @@ struct packet {
 typedef int8_t (*coms_encodePacket_fn)(struct packet*, uint8_t, uint16_t, uint8_t, uint8_t*, uint8_t);
 typedef int8_t (*coms_decodePacket_fn)(struct packet*, uint8_t*, uint8_t);
 
-struct init_ {
+struct driver_context {
     void* libhandle;
     coms_encodePacket_fn encode_func;
     coms_decodePacket_fn decode_func;
@@ -34,9 +34,9 @@ struct init_ {
 };
 
 // Function declarations
-struct init_ init(const char* serial_device);
-int request(struct init_* ctx, int deviceID, int requestPacketID, size_t length, int sleepDuration);
-int sendPosition(struct init_* ctx, int deviceID, float posData, size_t length, int sleepDuration);
+struct driver_context init(const char* serial_device);
+int request(struct driver_context* ctx, uint8_t deviceID, uint8_t requestPacketID, int sleepDuration, int writeAttempts, int readAttempts);
+int sendPosition(struct driver_context* ctx, uint8_t deviceID, float posData, int sleepDuration);
 
 
 #endif 

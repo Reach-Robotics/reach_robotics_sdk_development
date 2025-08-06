@@ -1,20 +1,25 @@
 #include "alpha_5_hardware/alpha_5_driver.h"
 #include <stdio.h>
+#include "alpha_5_hardware/packetID.h"
+
+#define PORT "/dev/ttyUSB0"
 
 int main() {
-    struct init_ ctx = init("/dev/ttyUSB0");
+    struct driver_context ctx = init(PORT);
     if (!ctx.libhandle || !ctx.encode_func || !ctx.decode_func || ctx.serial_fd < 0) {
         fprintf(stderr, "Initialization failed.\n");
         return 1;
     }
 
-    int device = 0x01;
+    uint8_t device = 0x03;
     float position = 5.0f;
-    int packet_id = 0x03;
+    uint16_t packet_id = POSITION;
 
-    sendPosition(&ctx, device, position, 1, 100);
-    request(&ctx, device, packet_id, 1, 50);
-
+    // sendPosition(&ctx, device, position, 100);
+    request(&ctx, device, packet_id, 50, 2, 3);
+    
+    // close serial_fd
+    close(ctx.serial_fd);
     return 0;
 }
 
