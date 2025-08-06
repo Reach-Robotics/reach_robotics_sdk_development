@@ -73,7 +73,7 @@
         <child link="m2_1_1_link"/>
         <origin xyz="0 0 0.014"/>
         <axis xyz="0 0 1"/>
-        <limit effort="25" lower="0.0" upper="6.3" velocity="4.0"/>
+        <limit effort="25" lower="0.0" upper="6.3" velocity="0.5"/>
         <dynamics damping="0.1"/>
     </joint>
 
@@ -112,9 +112,9 @@
     <joint name="axis_d" type="revolute">
         <parent link="m2_1_1_link"/>
         <child link="m2_joint_link"/>
-        <origin xyz="-0.02 0 0.033" rpy="0 1.56 0"/>
+        <origin xyz="-0.02 0 0.033"/>
         <axis xyz="0 1 0"/>
-        <limit effort="20" lower="0.0" upper="1.56" velocity="4.0"/>
+        <limit effort="20" lower="0.0" upper="3.8" velocity="0.5"/>
         <dynamics damping="0.1"/>
     </joint>
 
@@ -143,7 +143,7 @@
         <child link="m2_1_2_link"/>
         <origin xyz="-0.04 0 -0.1453" rpy="0 0 3.14159"/>
         <axis xyz="0 1 0"/>
-        <limit effort="10" lower="0.0" upper="3.5" velocity="4.0"/>
+        <limit effort="10" lower="0.0" upper="3.5" velocity="0.5"/>
         <dynamics damping="0.1"/>
     </joint>
 
@@ -172,7 +172,7 @@
         <child link="m1_link"/>
         <origin xyz="0.02 0 0.033" rpy="0 0 2.09439"/>
         <axis xyz="0 0 -1"/>
-        <limit effort="10" lower="0.0" upper="6.2" velocity="4.0"/>
+        <limit effort="10" lower="0.0" upper="6.2" velocity="0.5"/>
         <dynamics damping="0.1"/>
     </joint>
 
@@ -201,7 +201,7 @@
         <parent link="jaws_base_link"/>
         <child link="push_rod"/>
         <axis xyz="0 0 1"/>
-        <limit effort="10" lower="0.0" upper="0.015" velocity="4.0"/>
+        <limit effort="10" lower="0.0" upper="0.015" velocity="10.0"/>
         <dynamics damping="0.1"/>
     </joint>
 
