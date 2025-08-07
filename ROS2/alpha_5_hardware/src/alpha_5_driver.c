@@ -96,7 +96,6 @@ ssize_t write_serial_data(int fd, const uint8_t* data, size_t length) {
 }
 
 ssize_t read_serial_data(int fd, uint8_t *buffer, size_t max_length) {
-    fprintf(stderr, "called read function\n");
     ssize_t bytes_read = read(fd, buffer, max_length);
 
     if (bytes_read < 0) {
@@ -129,7 +128,7 @@ void sleepExec(int millisec) {
     nanosleep(&ts, NULL);
 }
 
-struct driver_context init(const char* serial_device){
+struct driver_context alpha_5_driver_init(const char* serial_device){
 
     struct driver_context ctx = {0};
 
@@ -161,7 +160,125 @@ struct driver_context init(const char* serial_device){
     return ctx;
 }
 
-int request (struct driver_context* ctx, uint8_t deviceID, uint8_t requestPacketID, int sleepMillisec, int writeAttempts, int readAttempts){
+int requestPackets (struct driver_context* ctx, uint8_t deviceID, uint8_t* PacketIDs, uint8_t length, int sleepMillisec, int writeAttempts, int readAttempts){
+
+    if (!ctx || !ctx->encode_func || ctx->serial_fd < 0){
+        fprintf(stderr, "Invalid context passed to request\n");
+        return -1;
+    }
+
+    for (int w = 0; w < writeAttempts; w++){
+
+        // Encode a request packet 
+        struct packet myPacket;
+        memset(&myPacket, 0, sizeof(myPacket)); // Initialize myPacket
+
+        myPacket.code = REQUEST;
+        myPacket.address = deviceID;
+        //myPacket.option = 0b111;
+       
+        int8_t status = ctx->encode_func(&myPacket, myPacket.address, myPacket.code, length + 4, PacketIDs, 0);
+        // C is not able to automatically get the length of an array, so i have to pass it.
+        // Be careful with sizeof() in case of pointers.
+
+        // Check if encoding was successful
+        if (status != 1) {
+            fprintf(stderr, "Error encoding packet: %d\n", status);
+            continue;
+        } else {
+            printf("Encoded values:\n");
+            // Print encoded data (assuming it’s stored in myPacket.transmitData)
+            printf("b'");
+            for (int i = 0; i < myPacket.length; i++) {
+                printf("\\x%02X", myPacket.transmitData[i]);
+            }
+            printf("'\n");
+
+        } 
+    
+        // Send encoded data
+        ssize_t sent = write_serial_data(ctx->serial_fd, myPacket.transmitData, myPacket.length);
+        if (sent != myPacket.length) {
+            fprintf(stderr, "Only wrote %zd of %d bytes to serial port\n", sent, myPacket.length);
+            continue;
+        } 
+        uint8_t receivedFlags[256] = {0};
+        int receivedCount = 0;
+        for (int r = 0; r < readAttempts; r++){
+            
+            sleepExec(sleepMillisec);
+
+            // Clear input buffer 
+            uint8_t serial_buffer[SERIAL_BUFFER_SIZE] = {0};
+            size_t serial_buffer_len = 0;
+
+            uint8_t response[64] = {0};
+            ssize_t received = read_serial_data(ctx->serial_fd, response, sizeof(response));
+            
+            if (received <= 0) {
+                fprintf(stderr, "No data received (attempt %d)\n", r + 1);
+                continue;  
+            }
+            
+            if (serial_buffer_len + received <= SERIAL_BUFFER_SIZE) {
+                memcpy(serial_buffer + serial_buffer_len, response, received);
+                serial_buffer_len += received;
+
+                // Try extract and decode packet
+                uint8_t extracted_packet[64];
+                size_t packet_len;
+
+                while (extract_packet_from_buffer(serial_buffer, &serial_buffer_len, extracted_packet, &packet_len)) {
+                    
+                    float dataValue = 0.0f;
+                    struct packet decodedResponse;
+                    memset(&decodedResponse, 0, sizeof(decodedResponse));
+
+                    int8_t decode_status = ctx->decode_func(&decodedResponse, extracted_packet, packet_len);
+                    if (decode_status != 1) {
+                        fprintf(stderr, "Error decoding packet: %d\n", decode_status);
+                        continue;
+                    }
+                    
+                    for (size_t i = 0; i < length; i++){
+                        if (decodedResponse.code == PacketIDs[i] && decodedResponse.address == deviceID){
+                            // Ensure not receiveing the same packet twice
+                            if(!receivedFlags[PacketIDs[i]]){ 
+                                receivedFlags[PacketIDs[i]] = 1;
+                                receivedCount++;
+                            }
+                            float dataValue = 0.0f;
+                            memcpy(&dataValue, decodedResponse.data, sizeof(float));
+                            printf("Received valid packet: %f\n", dataValue);
+                            printf("  Address: 0x%02X\n", decodedResponse.address);
+                            printf("  Code:    0x%X\n", decodedResponse.code);
+                            printf("  Data:    b'");
+                            for (int i = 0; i < decodedResponse.length - 4; i++) {
+                                printf("\\x%02X", decodedResponse.data[i]);
+                            }
+                            printf("  =  ");
+                            printf("%f\n", dataValue);
+
+                            if (receivedCount >= length){
+                                return 1;
+                            }
+                        }
+                    }
+                    
+                }
+            } else {
+                fprintf(stderr, "Serial buffer overflow!\n");
+                serial_buffer_len = 0; // Clear to recover
+            }
+            
+        } // end readAttempts
+    } // end writeAttempts
+    fprintf(stderr, "Failed to receive valid packet after %d write attempts\n", writeAttempts);
+    return 0;
+}
+
+
+int request (struct driver_context* ctx, uint8_t deviceID, uint8_t packetID, int sleepMillisec, int writeAttempts, int readAttempts){
     // TODO: upgrade the request function to accept an uint8_t as requestPacketID
 
     if (!ctx || !ctx->encode_func || ctx->serial_fd < 0){
@@ -191,8 +308,7 @@ int request (struct driver_context* ctx, uint8_t deviceID, uint8_t requestPacket
         // printf("%d\n", data);
         // printf("\n");
 
-        uint8_t encoded_data = requestPacketID;
-        int8_t status = ctx->encode_func(&myPacket, myPacket.address, myPacket.code, sizeof(encoded_data) + 4, &encoded_data, 0);
+        int8_t status = ctx->encode_func(&myPacket, myPacket.address, myPacket.code, sizeof(packetID) + 4, &packetID, 0);
 
         // Check if encoding was successful
         if (status != 1) {
@@ -252,7 +368,7 @@ int request (struct driver_context* ctx, uint8_t deviceID, uint8_t requestPacket
                         continue;
                     }
                     
-                    if (decodedResponse.code == requestPacketID && decodedResponse.address == deviceID){
+                    if (decodedResponse.code == packetID && decodedResponse.address == deviceID){
                         float dataValue = 0.0f;
                         memcpy(&dataValue, decodedResponse.data, sizeof(float));
                         printf("Received valid packet: %f\n", dataValue);
