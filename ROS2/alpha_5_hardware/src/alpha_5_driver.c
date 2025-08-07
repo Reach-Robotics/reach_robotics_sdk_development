@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <time.h>
+#include <sys/time.h>
 
 #include "alpha_5_hardware/alpha_5_driver.h"
 #include "alpha_5_hardware/packetID.h"
@@ -158,6 +159,129 @@ struct driver_context alpha_5_driver_init(const char* serial_device){
     }
 
     return ctx;
+}
+
+long get_time_millis() {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (tv.tv_sec * 1000L) + (tv.tv_usec / 1000L);
+}
+
+int requestPacketsLoop (struct driver_context* ctx, uint8_t requestFrequency){
+    uint8_t packetIDs[] = {POSITION, VELOCITY, CURRENT};
+    uint8_t length = sizeof(packetIDs);
+
+    if (!ctx || !ctx->encode_func || ctx->serial_fd < 0){
+        fprintf(stderr, "Invalid context passed to request\n");
+        return -1;
+    }
+    long lastReqTime = get_time_millis();
+    while (1){
+        long currentTime = get_time_millis();
+        if (currentTime - lastReqTime > (1000 / requestFrequency)){
+
+            struct packet myPacket;
+            memset(&myPacket, 0, sizeof(myPacket)); // Initialize myPacket
+
+            myPacket.code = REQUEST;
+            myPacket.address = 0xFF;
+            
+            int8_t status = ctx->encode_func(&myPacket, myPacket.address, myPacket.code, length + 4, packetIDs, 0);
+
+            if (status != 1) {
+            fprintf(stderr, "Error encoding packet: %d\n", status);
+            continue;
+            }
+
+            ssize_t sent = write_serial_data(ctx->serial_fd, myPacket.transmitData, myPacket.length);
+            if (sent != myPacket.length) {
+                fprintf(stderr, "Only wrote %zd of %d bytes to serial port\n", sent, myPacket.length);
+            } 
+
+            float positions[5] = {0};
+            float velocities[5] = {0};
+            float currents[5] = {0};
+
+            // Clear input buffer 
+            uint8_t serial_buffer[SERIAL_BUFFER_SIZE] = {0};
+            size_t serial_buffer_len = 0;
+
+            uint8_t response[256] = {0};
+            ssize_t received = read_serial_data(ctx->serial_fd, response, sizeof(response));
+            
+            if (received <= 0) {
+                fprintf(stderr, "No data received\n");
+            }
+            
+            if (serial_buffer_len + received <= SERIAL_BUFFER_SIZE) {
+                memcpy(serial_buffer + serial_buffer_len, response, received);
+                serial_buffer_len += received;
+
+                // Try extract and decode packet
+                uint8_t extracted_packet[64];
+                size_t packet_len;
+
+                while (extract_packet_from_buffer(serial_buffer, &serial_buffer_len, extracted_packet, &packet_len)) {
+                    
+                    struct packet decodedResponse;
+                    memset(&decodedResponse, 0, sizeof(decodedResponse));
+
+                    int8_t decode_status = ctx->decode_func(&decodedResponse, extracted_packet, packet_len);
+                    if (decode_status != 1) {
+                        fprintf(stderr, "Error decoding packet: %d\n", decode_status);
+                        continue;
+                    }
+                    
+                    int index = decodedResponse.address - 1;
+                    float dataValue = 0.0f;
+                    for (size_t i = 0; i < length; i++){
+                        if (decodedResponse.code == POSITION){
+                            
+                            memcpy(&dataValue, decodedResponse.data, sizeof(float));
+                            positions[index] = dataValue;
+                        }
+                        if (decodedResponse.code == VELOCITY){
+                            
+                            memcpy(&dataValue, decodedResponse.data, sizeof(float));
+                            velocities[index] = dataValue;
+                        }
+                        if (decodedResponse.code == CURRENT){
+                            
+                            memcpy(&dataValue, decodedResponse.data, sizeof(float));
+                            currents[index] = dataValue;
+                        }
+                    }
+                }
+                printf("POSITIONS:  [");
+                for (int i = 0; i < 5; i++) {
+                    printf("%.2f", positions[i]);
+                    if (i < 5 - 1) printf(", ");
+                }
+                printf("]\n");
+
+                printf("VELOCITIES:  [");
+                for (int i = 0; i < 5; i++) {
+                    printf("%.2f", velocities[i]);
+                    if (i < 5 - 1) printf(", ");
+                }
+                printf("]\n");
+
+                printf("CURRENTS:  [");
+                for (int i = 0; i < 5; i++) {
+                    printf("%.2f", currents[i]);
+                    if (i < 5 - 1) printf(", ");
+                }
+                printf("]\n");
+                printf("\n");
+            } else {
+                fprintf(stderr, "Serial buffer overflow!\n");
+                serial_buffer_len = 0; // Clear to recover
+            }
+
+            lastReqTime = currentTime;
+        }
+        usleep(1000);
+    }
 }
 
 int requestPackets (struct driver_context* ctx, uint8_t deviceID, uint8_t* PacketIDs, uint8_t length, int sleepMillisec, int writeAttempts, int readAttempts){

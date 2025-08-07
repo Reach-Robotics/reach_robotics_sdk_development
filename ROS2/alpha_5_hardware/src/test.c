@@ -19,8 +19,8 @@ int main() {
     //request(&ctx, device, packet_id, 50, 2, 3);
 
     uint8_t request_ids[] = {POSITION, VELOCITY, CURRENT, INTERNAL_TEMPERATURE, VOLTAGE};
-    requestPackets(&ctx, device, request_ids, 5, 50, 2, 3);
-
+    //requestPackets(&ctx, device, request_ids, 5, 50, 2, 3);
+    requestPacketsLoop(&ctx, 2);
     close(ctx.serial_fd);
     return 0;
 }
