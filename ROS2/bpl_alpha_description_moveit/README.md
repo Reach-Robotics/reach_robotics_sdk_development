@@ -1,8 +1,13 @@
-# MoveIt resources for testing Reach Robotics Alpha 5 arm
+# MoveIt Resources for Testing the Reach Robotics Alpha 5 arm
 
-This package depends on *bpl_alpha_description* package and implements Gazebo simulation with MoveIt and ros2_control.
+This package provides **MoveIt, Gazebo, and ros2_control** simulation support for the Alpha 5 robotic arm.  
+It depends on [bpl_alpha_description](../../../../src/reach_robotics_sdk/ROS2/bpl_alpha_description/launch/launch_sim.launch.py) package for the robot's URDF and control configuration.
 
-## Running simulation:
+## Dependencies
+- `bpl_alpha_description`
+- `ros-jazzy-ros-gz`, `ros-jazzy-gz-ros2-control`,`ros-jazzy-ros2-control`, `ros-jazzy-ros2-controllers` 
+
+## Launching the simulation:
 
 ```python
 ros2 launch bpl_alpha_description_moveit demo_gz.launch.py
@@ -13,21 +18,26 @@ ros2 launch bpl_alpha_description_moveit demo_gz.launch.py
 ros2 run rqt_joint_trajectory_controller rqt_joint_trajectory_controller 
 ```
 
-## Editing the package:
-- Manually modify *alpha_5.srdf* file
+## Editing Robot configuration:
+**Option 1 - Manual editing**  
 
-Or
+Manually modify `alpha_5.srdf` file, located in `srdf/` directory.
 
-- Run MoveIt setup assistant wizard
+**Option 2 - MoveIt Setup Assistant**  
+
+Launch the wizard to visually configure planning groups and end-effectors:
 
 ```python
 ros2 launch moveit_setup_assistant setup_assistant.launch.py
 ```
 
-⚠️ MoveIt wizard does not update *joint_limits.yaml* and *alpha_5.urdf.xacro* files, which have to be fixed manually.
+⚠️ **Note:** The Setup Assistant does **not** automatically update the following files. These must be updated manually:
+- `joint_limits.yaml`
+- `alpha_5.urdf.xacro`
 
-🔍 **joint_limits example yaml file**
-```python
+---
+### **Example: `joint_limits.yaml`**
+```yaml
 # joint_limits.yaml allows the dynamics properties specified in the URDF to be overwritten or augmented as needed
 
 # For beginners, we downscale velocity and acceleration limits.
@@ -75,9 +85,9 @@ joint_limits:
     max_acceleration: 50.0
 
 ```
-
-🔍 **alpha_5.urdf.xacro file**
-```python
+---
+### **Example: `alpha_5.urdf.xacro`**
+```xml
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="alpha_5">
     <!-- <xacro:arg name="initial_positions_file" default="initial_positions.yaml" /> -->
@@ -93,6 +103,6 @@ joint_limits:
 
 </robot>
 ```
-- *initial_positions.yaml* file is not necessary since joint states are published by *joint_state_broadcaster*
-- Custom *ros2_control.xacro* is loaded directly from */bpl_alpha_description/urdf/alpha_5.urdf.xacro*
-- This package uses a real hardware interface plugin (*gz_ros2_control*) that connects the robot's joints to Gazebo’s physics engine. Including the FakeSystem would conflict with the Gazebo control plugin.
+- `initial_positions.yaml` is not required since joint states are published by the `joint_state_broadcaster`.  
+- Custom `ros2_control.xacro` is loaded directly from `alpha_5.urdf.xacro` in `bpl_alpha_description` package.  
+- This package uses a real hardware interface plugin `gz_ros2_control` that connects the robot's joints to Gazebo’s physics engine. Including a `FakeSystem` would conflict with the Gazebo control plugin.
