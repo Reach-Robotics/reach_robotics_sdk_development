@@ -107,17 +107,39 @@ ssize_t read_serial_data(int fd, uint8_t *buffer, size_t max_length) {
 }
 
 bool extract_packet_from_buffer(uint8_t* buffer, size_t* buffer_len, uint8_t* packet_out, size_t* packet_len) {
-    if (*buffer_len < 8) return false;  // Need at least 8 bytes to read buffer[7]
-    uint8_t payload_len = buffer[7];
-    uint8_t expected_len = 10;
+    // Extract packets from buffer using COBS
+    size_t i;
+    for (i = 0; i < *buffer_len; ++i) {
+        if (buffer[i] == 0x00) {
+            break;
+        }
+    }
 
-    if (*buffer_len < expected_len) return false;  // Wait for full packet
+    if (i == *buffer_len) {
+        // No full packet (delimiter not found)
+        return false;
+    }
 
-    memcpy(packet_out, buffer, expected_len);
-    *packet_len = expected_len;
-    // Shift remaining buffer content
-    memmove(buffer, buffer + expected_len, *buffer_len - expected_len);
-    *buffer_len -= expected_len;
+    if (i == 0) {
+        // Skip stray 0x00 
+        memmove(buffer, buffer + 1, *buffer_len - 1);
+        (*buffer_len)--;
+        return false;
+    }
+
+    memcpy(packet_out, buffer, i);
+    packet_out[i] = 0x00;
+    *packet_len = i + 1;
+
+    // printf("Raw COBS packet: ");
+    // for (size_t j = 0; j < i; j++) {
+    //     printf("\\x%02X", packet_out[j]);
+    // }
+    // printf("\n");
+
+    // Shift remaining bytes in buffer (i + 1 to skip the delimiter)
+    memmove(buffer, buffer + i + 1, *buffer_len - (i + 1));
+    *buffer_len -= (i + 1);
 
     return true;
 }
