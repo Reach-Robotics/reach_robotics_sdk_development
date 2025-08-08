@@ -12,7 +12,7 @@ extern "C" {
 #include <unistd.h>
 
 #define SERIAL_BUFFER_SIZE 256
-#define BAUDRATE 115200
+#define BAUDRATE B115200
 
 struct packet {
   uint8_t length;
