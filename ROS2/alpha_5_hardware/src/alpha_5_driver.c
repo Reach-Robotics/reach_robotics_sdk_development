@@ -198,6 +198,10 @@ int requestPacketsLoop (struct driver_context* ctx, uint8_t requestFrequency){
         return -1;
     }
     long lastReqTime = get_time_millis();
+
+    uint8_t serial_buffer[SERIAL_BUFFER_SIZE] = {0};
+    size_t serial_buffer_len = 0;
+
     while (1){
         long currentTime = get_time_millis();
         if (currentTime - lastReqTime > (1000 / requestFrequency)){
@@ -223,10 +227,6 @@ int requestPacketsLoop (struct driver_context* ctx, uint8_t requestFrequency){
             float positions[5] = {0};
             float velocities[5] = {0};
             float currents[5] = {0};
-
-            // Clear input buffer 
-            uint8_t serial_buffer[SERIAL_BUFFER_SIZE] = {0};
-            size_t serial_buffer_len = 0;
 
             uint8_t response[256] = {0};
             ssize_t received = read_serial_data(ctx->serial_fd, response, sizeof(response));
