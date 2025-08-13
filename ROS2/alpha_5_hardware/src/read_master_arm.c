@@ -9,30 +9,52 @@
 #include <stdlib.h>
 #include <time.h>
 #include <stdbool.h>
+#include <sys/time.h>
+
+#include "alpha_5_hardware/read_master_arm.h"
+
+#define PORT "/dev/ttyUSB0"
 
 
-#define SERIAL_BUFFER_SIZE 1024
+void* load_rs_protocol_library() {
+    // const char* lib_path = "/home/michele/reach_ws/src/reach_robotics_sdk/rs_protocol/lib/librs_protocol_linux_x86_64.so";
+    const char* lib_path = "../../../rs_protocol/lib/librs_protocol_linux_x86_64.so";
 
-struct packet {
-  uint8_t length;
-    uint8_t address;
-    uint16_t code;
-    uint16_t crc;
-    uint8_t data[64];
-    uint8_t transmitData[64];
-    uint8_t protocol;
-    uint8_t option;
-    uint8_t useOption;
-    uint16_t receiveRegister;
-    uint8_t totalFrames;
-};
+    void* libhandle = dlopen(lib_path, RTLD_LAZY);
+    if (!libhandle) {
+        fprintf(stderr, "Error loading library '%s': %s\n", lib_path, dlerror());
+        return NULL;
+    }
 
-// Function declarations
-int open_serial_port(const char* device, speed_t baudrate);
-typedef int8_t (*coms_decodePacket_fn)(struct packet* dest_packet, uint8_t* src_buffer, uint8_t src_length);
+    return libhandle;
+}
+
+coms_encodePacket_fn load_coms_encodePacket(void* libhandle) {
+    dlerror();  // Clear existing errors
+
+    coms_encodePacket_fn encode_func = (coms_encodePacket_fn)dlsym(libhandle, "coms_encodePacket");
+    char* error = dlerror();
+    if (error != NULL) {
+        fprintf(stderr, "Error finding function coms_encodePacket: %s\n", error);
+        return NULL;
+    }
+    return encode_func;
+}
+
+coms_decodePacket_fn load_coms_decodePacket(void* libhandle) {
+    dlerror();  // Clear existing errors
+
+    coms_decodePacket_fn decode_func = (coms_decodePacket_fn)dlsym(libhandle, "coms_decodePacket");
+    char* error = dlerror();
+    if (error != NULL) {
+        fprintf(stderr, "Error finding function coms_decodePacket: %s\n", error);
+        return NULL;
+    }
+    return decode_func;
+}
 
 
-int open_serial_port(const char* device, speed_t baudrate) {
+int open_serial_port(const char* device) {
     int fd = open(device, O_RDWR | O_NOCTTY | O_SYNC);
     if (fd < 0) {
         fprintf(stderr, "Error opening %s: %s\n", device, strerror(errno));
@@ -46,8 +68,8 @@ int open_serial_port(const char* device, speed_t baudrate) {
         return -1;
     }
 
-    cfsetospeed(&tty, baudrate);
-    cfsetispeed(&tty, baudrate);
+    cfsetospeed(&tty, BAUDRATE);
+    cfsetispeed(&tty, BAUDRATE);
 
     tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8;     // 8-bit chars
     tty.c_iflag &= ~IGNBRK;                         // disable break processing
@@ -71,32 +93,6 @@ int open_serial_port(const char* device, speed_t baudrate) {
     return fd;
 }
 
-coms_decodePacket_fn load_coms_decodePacket(void* libhandle) {
-    dlerror();  // Clear existing errors
-
-    coms_decodePacket_fn decode_func = (coms_decodePacket_fn)dlsym(libhandle, "coms_decodePacket");
-    char* error = dlerror();
-    if (error != NULL) {
-        fprintf(stderr, "Error finding function coms_decodePacket: %s\n", error);
-        return NULL;
-    }
-
-    printf("Successfully loaded function coms_decodePacket.\n");
-    return decode_func;
-}
-
-void* load_rs_protocol_library() {
-    const char* lib_path = "/home/michele/reach_ws/src/reach_robotics_sdk/rs_protocol/lib/librs_protocol_linux_x86_64.so";
-
-    void* libhandle = dlopen(lib_path, RTLD_LAZY);
-    if (!libhandle) {
-        fprintf(stderr, "Error loading library '%s': %s\n", lib_path, dlerror());
-        return NULL;
-    }
-
-    return libhandle;
-}
-
 ssize_t write_serial_data(int fd, const uint8_t* data, size_t length) {
     ssize_t bytes_written = write(fd, data, length);
     if (bytes_written < 0) {
@@ -115,16 +111,8 @@ ssize_t read_serial_data(int fd, uint8_t *buffer, size_t max_length) {
     return bytes_read;
 }
 
-void sleepExec(int millisec) {
-    struct timespec ts;
-    ts.tv_sec = 0;         
-    ts.tv_nsec = millisec * 1000000L; 
-    nanosleep(&ts, NULL);
-}
-
-
 bool extract_packet_from_buffer(uint8_t* buffer, size_t* buffer_len, uint8_t* packet_out, size_t* packet_len) {
-    // Look for the delimiter (0x00), which marks the end of a COBS packet
+    // Extract packets from buffer using COBS
     size_t i;
     for (i = 0; i < *buffer_len; ++i) {
         if (buffer[i] == 0x00) {
@@ -138,13 +126,12 @@ bool extract_packet_from_buffer(uint8_t* buffer, size_t* buffer_len, uint8_t* pa
     }
 
     if (i == 0) {
-        // Skip stray 0x00 (could happen in noisy lines)
+        // Skip stray 0x00 
         memmove(buffer, buffer + 1, *buffer_len - 1);
         (*buffer_len)--;
         return false;
     }
 
-    // Copy the packet (excluding the delimiter)
     memcpy(packet_out, buffer, i);
     packet_out[i] = 0x00;
     *packet_len = i + 1;
@@ -162,75 +149,128 @@ bool extract_packet_from_buffer(uint8_t* buffer, size_t* buffer_len, uint8_t* pa
     return true;
 }
 
+void sleepExec(int millisec) {
+    struct timespec ts;
+    ts.tv_sec = 0;         
+    ts.tv_nsec = millisec * 1000000L; 
+    nanosleep(&ts, NULL);
+}
 
-int main() {
-    const char* device_path = "/dev/ttyUSB0";  // Replace with your actual device path
+struct driver_context alpha_5_driver_init(const char* serial_device){
 
-    void* libhandle = load_rs_protocol_library();
-    if (!libhandle) return 1;
+    struct driver_context ctx = {0};
 
-    coms_decodePacket_fn decode_func = load_coms_decodePacket(libhandle);
-    if (!decode_func) {
-        dlclose(libhandle);
-        return 1;
+    ctx.libhandle = load_rs_protocol_library();
+    if(!ctx.libhandle) return ctx;
+
+    ctx.encode_func = load_coms_encodePacket(ctx.libhandle);
+    if (!ctx.encode_func) {
+        dlclose(ctx.libhandle);
+        ctx.libhandle = NULL;
+        return ctx;
     }
 
-    int serial = open_serial_port(device_path, B115200);
-
-    if (serial < 0) {
-        fprintf(stderr, "Failed to open serial port\n");
-        return 1;
+    ctx.decode_func = load_coms_decodePacket(ctx.libhandle);
+    if (!ctx.decode_func) {
+        dlclose(ctx.libhandle);
+        ctx.libhandle = NULL;
+        return ctx;
     }
-    uint8_t serial_buffer[SERIAL_BUFFER_SIZE] = {0};
-    size_t serial_buffer_len = 0;
-    
+
+    ctx.serial_fd = open_serial_port(serial_device);
+    if (ctx.serial_fd < 0) {
+        dlclose(ctx.libhandle);
+        ctx.libhandle = NULL;
+        ctx.encode_func = NULL;
+        ctx.decode_func = NULL;
+    }
+
+    return ctx;
+}
+
+long get_time_millis() {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (tv.tv_sec * 1000L) + (tv.tv_usec / 1000L);
+}
+
+
+void readMasterArm(struct driver_context* ctx) {
+    if (!ctx || !ctx->encode_func || ctx->serial_fd < 0) {
+        fprintf(stderr, "Invalid context passed to request\n");
+        return;
+    }
+
+    uint8_t serial_buffer[SERIAL_BUFFER_SIZE] = {0}; 
+    size_t serial_buffer_len = 0;                    
+
     while (1) {
-        
         uint8_t response[256] = {0};
-        ssize_t received = read_serial_data(serial, response, sizeof(response));
-        
+        ssize_t received = read_serial_data(ctx->serial_fd, response, sizeof(response));
+
         if (received <= 0) {
             fprintf(stderr, "No data received\n");
+            usleep(1000);
             continue;
         }
-        
+
         if (serial_buffer_len + received <= SERIAL_BUFFER_SIZE) {
             memcpy(serial_buffer + serial_buffer_len, response, received);
             serial_buffer_len += received;
 
-            // Try extract and decode packet
             uint8_t extracted_packet[64];
             size_t packet_len;
 
             while (extract_packet_from_buffer(serial_buffer, &serial_buffer_len, extracted_packet, &packet_len)) {
+                // Print extracted packet
+                printf("Extracted packet (%zu bytes): ", packet_len);
+                for (size_t i = 0; i < packet_len; i++) {
+                    printf("\\x%02X", extracted_packet[i]);
+                }
+                printf("\n");
 
-                float dataValue = 0.0f;
-                struct packet decodedResponse;
-                memset(&decodedResponse, 0, sizeof(decodedResponse));
+                struct packet decodedResponse = {0};
+                int8_t decode_status = ctx->decode_func(&decodedResponse, extracted_packet, packet_len);
 
-                int8_t decode_status = decode_func(&decodedResponse, extracted_packet, packet_len);
                 if (decode_status != 1) {
                     fprintf(stderr, "Error decoding packet: %d\n", decode_status);
                     continue;
                 }
 
-                printf("  Address: 0x%02X\n", decodedResponse.address);
-                printf("  Code:    0x%X\n", decodedResponse.code);
-                
+                // Print decoded data (excluding CRC if applicable)
+                printf("Decoded data: ");
+                float dataValue = 0.0f;
+                memcpy(&dataValue, decodedResponse.data, sizeof(float));
+                printf("    Address: 0x%02X\n", decodedResponse.address);
+                printf("    Code:   0x%X\n", decodedResponse.code);
                 for (int i = 0; i < decodedResponse.length - 4; i++) {
                     printf("\\x%02X", decodedResponse.data[i]);
                 }
-                printf("\n");
-
-                memcpy(&dataValue, decodedResponse.data, sizeof(float));
-                printf("Float value %f\n", dataValue);
+                printf("    = %f\n", dataValue);
             }
+        } else {
+            fprintf(stderr, "Serial buffer overflow, clearing\n");
+            serial_buffer_len = 0;
         }
+
+        usleep(1000);
     }
+}
 
-    dlclose(libhandle);
 
+
+int main() {
+
+    struct driver_context ctx = alpha_5_driver_init(PORT);
+    if (!ctx.libhandle || !ctx.encode_func || !ctx.decode_func || ctx.serial_fd < 0) {
+        fprintf(stderr, "Initialization failed.\n");
+        return 1;
+    }
+    readMasterArm(&ctx);
+
+    close(ctx.serial_fd);
     return 0;
+
 }
 
 // gcc -o readMasterArm read_master_arm.c -ldl && ./readMasterArm
