@@ -42,7 +42,7 @@ struct driver_context {
 struct driver_context alpha_5_driver_init(const char* serial_device);
 int requestPacketsLoop(struct driver_context*, uint8_t requestFrequency);
 int requestPackets(struct driver_context* ctx, uint8_t deviceID, uint8_t* PacketIDs, uint8_t length, int sleepDuration, int writeAttempts, int readAttempts);
-int request(struct driver_context* ctx, uint8_t deviceID, uint8_t requestPacketID, int sleepDuration, int writeAttempts, int readAttempts);
+float request(struct driver_context* ctx, uint8_t deviceID, uint8_t requestPacketID, int sleepDuration, int writeAttempts, int readAttempts);
 int sendPosition(struct driver_context* ctx, uint8_t deviceID, float posData, int sleepDuration);
 
 #ifdef __cplusplus

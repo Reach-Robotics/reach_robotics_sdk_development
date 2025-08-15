@@ -7,13 +7,36 @@
 #include <unistd.h>
 #include <time.h>
 #include <sys/time.h>
+#include <dlfcn.h>
+
 
 #include "alpha_5_hardware/alpha_5_driver.h"
 #include "alpha_5_hardware/packetID.h"
 
+// void* load_rs_protocol_library() {
+//     // const char* lib_path = "/home/michele/reach_ws/src/reach_robotics_sdk/rs_protocol/lib/librs_protocol_linux_x86_64.so";
+//     const char* lib_path = "../../../rs_protocol/lib/librs_protocol_linux_x86_64.so";
+
+//     void* libhandle = dlopen(lib_path, RTLD_LAZY);
+//     if (!libhandle) {
+//         fprintf(stderr, "Error loading library '%s': %s\n", lib_path, dlerror());
+//         return NULL;
+//     }
+
+//     return libhandle;
+// }
+
 void* load_rs_protocol_library() {
-    // const char* lib_path = "/home/michele/reach_ws/src/reach_robotics_sdk/rs_protocol/lib/librs_protocol_linux_x86_64.so";
-    const char* lib_path = "../../../rs_protocol/lib/librs_protocol_linux_x86_64.so";
+    const char* am_prefix = getenv("AMENT_PREFIX_PATH");
+    if (!am_prefix) {
+        fprintf(stderr, "Error: AMENT_PREFIX_PATH not set\n");
+        return NULL;
+    }
+
+    // Construct full path to your .so library
+    // Adjust "reach_robotics_sdk" and subfolders as needed
+    char lib_path[1024];
+    snprintf(lib_path, sizeof(lib_path), "%s/reach_robotics_sdk/rs_protocol/lib/librs_protocol_linux_x86_64.so", am_prefix);
 
     void* libhandle = dlopen(lib_path, RTLD_LAZY);
     if (!libhandle) {
@@ -21,6 +44,7 @@ void* load_rs_protocol_library() {
         return NULL;
     }
 
+    printf("Library loaded successfully from: %s\n", lib_path);
     return libhandle;
 }
 
@@ -193,10 +217,23 @@ int requestPacketsLoop (struct driver_context* ctx, uint8_t requestFrequency){
     uint8_t packetIDs[] = {POSITION, VELOCITY, CURRENT};
     uint8_t length = sizeof(packetIDs);
 
-    if (!ctx || !ctx->encode_func || ctx->serial_fd < 0){
-        fprintf(stderr, "Invalid context passed to request\n");
+    if (!ctx || !ctx->encode_func || ctx->serial_fd < 0) {
+        fprintf(stderr, "Invalid context passed to request:\n");
+
+        if (!ctx) {
+            fprintf(stderr, "  - ctx is NULL\n");
+        } else {
+            if (!ctx->encode_func) {
+                fprintf(stderr, "  - ctx->encode_func is NULL\n");
+            }
+            if (ctx->serial_fd < 0) {
+                fprintf(stderr, "  - ctx->serial_fd is %d (invalid)\n", ctx->serial_fd);
+            }
+        }
+
         return -1;
     }
+
     long lastReqTime = get_time_millis();
 
     uint8_t serial_buffer[SERIAL_BUFFER_SIZE] = {0};
@@ -424,11 +461,23 @@ int requestPackets (struct driver_context* ctx, uint8_t deviceID, uint8_t* Packe
 }
 
 
-int request (struct driver_context* ctx, uint8_t deviceID, uint8_t packetID, int sleepMillisec, int writeAttempts, int readAttempts){
+float request (struct driver_context* ctx, uint8_t deviceID, uint8_t packetID, int sleepMillisec, int writeAttempts, int readAttempts){
     // TODO: upgrade the request function to accept an uint8_t as requestPacketID
 
-    if (!ctx || !ctx->encode_func || ctx->serial_fd < 0){
-        fprintf(stderr, "Invalid context passed to request\n");
+    if (!ctx || !ctx->encode_func || ctx->serial_fd < 0) {
+        fprintf(stderr, "Invalid context passed to request:\n");
+
+        if (!ctx) {
+            fprintf(stderr, "  - ctx is NULL\n");
+        } else {
+            if (!ctx->encode_func) {
+                fprintf(stderr, "  - ctx->encode_func is NULL\n");
+            }
+            if (ctx->serial_fd < 0) {
+                fprintf(stderr, "  - ctx->serial_fd is %d (invalid)\n", ctx->serial_fd);
+            }
+        }
+
         return -1;
     }
 
@@ -526,7 +575,7 @@ int request (struct driver_context* ctx, uint8_t deviceID, uint8_t packetID, int
                         }
                         printf("  =  ");
                         printf("%f\n", dataValue);
-                        return 1;
+                        return dataValue;
                     }
                 }
             } else {
@@ -537,14 +586,28 @@ int request (struct driver_context* ctx, uint8_t deviceID, uint8_t packetID, int
         } // end readAttempts
     } // end writeAttempts
     fprintf(stderr, "Failed to receive valid packet after %d write attempts\n", writeAttempts);
-    return 0;
+    return 0.0f;
 }
 
 int sendPosition(struct driver_context* ctx, uint8_t deviceID, float posData, int sleepDuration){
-    if(!ctx || !ctx->encode_func || ctx->serial_fd < 0){
-        fprintf(stderr, "Invalid context passed to sendPosition\n");
+    
+    if (!ctx || !ctx->encode_func || ctx->serial_fd < 0) {
+        fprintf(stderr, "Invalid context passed to request:\n");
+
+        if (!ctx) {
+            fprintf(stderr, "  - ctx is NULL\n");
+        } else {
+            if (!ctx->encode_func) {
+                fprintf(stderr, "  - ctx->encode_func is NULL\n");
+            }
+            if (ctx->serial_fd < 0) {
+                fprintf(stderr, "  - ctx->serial_fd is %d (invalid)\n", ctx->serial_fd);
+            }
+        }
+
         return -1;
     }
+
     // Encode a request packet 
     struct packet myPacket;
     memset(&myPacket, 0, sizeof(myPacket)); // Initialize myPacket
