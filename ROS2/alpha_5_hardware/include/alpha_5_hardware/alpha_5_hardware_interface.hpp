@@ -2,7 +2,7 @@
 #define ALPHA_5_HARDWARE_INTERFACE_HPP
 
 #include "hardware_interface/system_interface.hpp"
-#include "alpha_5_hardware/rs_protocol.h"
+#include "alpha_5_hardware/alpha_5_driver.h"
 
 namespace alpha_5_hardware{
 
@@ -26,15 +26,14 @@ public:
 
 
 private:
-  // TODO: Add reference to Alpha_5 driver
-
   int axis_a_device_id;
   int axis_b_device_id;
   int axis_c_device_id;
   int axis_d_device_id; 
   int axis_e_device_id;
   std::string port;
-
+  struct driver_context ctx;
+  
   double prev_axis_a_pos_ = 0.0;
   double prev_axis_b_pos_ = 0.0;
   double prev_axis_c_pos_ = 0.0;
