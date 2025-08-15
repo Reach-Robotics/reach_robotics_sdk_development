@@ -10,6 +10,8 @@
 #include <time.h>
 #include <stdbool.h>
 #include <sys/time.h>
+#include <sys/ioctl.h>
+#include <linux/serial.h>
 
 #include "alpha_5_hardware/read_master_arm.h"
 
@@ -55,13 +57,18 @@ coms_decodePacket_fn load_coms_decodePacket(void* libhandle) {
 
 
 int open_serial_port(const char* device) {
-    int fd = open(device, O_RDWR | O_NOCTTY | O_SYNC);
+    // Opening the serial port in non-blocking mode
+    int fd = open(device, O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (fd < 0) {
         fprintf(stderr, "Error opening %s: %s\n", device, strerror(errno));
         return -1;
     }
 
+    //  Blocking mode
+    fcntl(fd, F_SETFL, 0);
+
     struct termios tty;
+    memset(&tty, 0, sizeof tty);
     if (tcgetattr(fd, &tty) != 0) {
         fprintf(stderr, "Error getting attributes: %s\n", strerror(errno));
         close(fd);
@@ -71,18 +78,21 @@ int open_serial_port(const char* device) {
     cfsetospeed(&tty, BAUDRATE);
     cfsetispeed(&tty, BAUDRATE);
 
-    tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8;     // 8-bit chars
-    tty.c_iflag &= ~IGNBRK;                         // disable break processing
-    tty.c_lflag = 0;                                // no signaling chars, no echo
-    tty.c_oflag = 0;                                // no remapping, no delays
-    tty.c_cc[VMIN]  = 0;                            // read doesn't block
-    tty.c_cc[VTIME] = 10;                           // 1 second read timeout
+    tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8; // 8 bit
+    tty.c_cflag |= (CLOCAL | CREAD);            // abilita ricezione, ignora modem ctrl
+    tty.c_cflag &= ~(PARENB | PARODD);          // no parity
+    tty.c_cflag &= ~CSTOPB;                     // 1 stop bit
+    tty.c_cflag &= ~CRTSCTS;                    // no hw flow control
 
-    tty.c_iflag &= ~(IXON | IXOFF | IXANY);         // shut off xon/xoff ctrl
-    tty.c_cflag |= (CLOCAL | CREAD);                // ignore modem controls
-    tty.c_cflag &= ~(PARENB | PARODD);              // no parity
-    tty.c_cflag &= ~CSTOPB;                         // 1 stop bit
-    tty.c_cflag &= ~CRTSCTS;                        // no hardware flow control
+    tty.c_iflag &= ~IGNBRK;                     // no break processing
+    tty.c_iflag &= ~(IXON | IXOFF | IXANY);     // no sw flow control
+    tty.c_iflag &= ~(INLCR | ICRNL | IGNCR);    // no translation
+
+    tty.c_lflag = 0;                            // modalità raw
+    tty.c_oflag = 0;                            // output raw
+
+    tty.c_cc[VMIN]  = 0;                        // read non bloccante finché non scade timeout
+    tty.c_cc[VTIME] = 10;                       // 1s timeout
 
     if (tcsetattr(fd, TCSANOW, &tty) != 0) {
         fprintf(stderr, "Error setting attributes: %s\n", strerror(errno));
@@ -90,8 +100,21 @@ int open_serial_port(const char* device) {
         return -1;
     }
 
+    // Disable DTR/RTS
+    int mctl;
+    ioctl(fd, TIOCMGET, &mctl);
+    mctl &= ~TIOCM_DTR;
+    mctl &= ~TIOCM_RTS;
+    ioctl(fd, TIOCMSET, &mctl);
+
+    // Flush buffer
+    tcflush(fd, TCIOFLUSH);
+
+    usleep(500000); // 500ms
+
     return fd;
 }
+
 
 ssize_t write_serial_data(int fd, const uint8_t* data, size_t length) {
     ssize_t bytes_written = write(fd, data, length);
@@ -200,12 +223,14 @@ void readMasterArm(struct driver_context* ctx) {
         fprintf(stderr, "Invalid context passed to request\n");
         return;
     }
+    tcflush(ctx->serial_fd, TCIFLUSH);
+    usleep(200000);
 
     uint8_t serial_buffer[SERIAL_BUFFER_SIZE] = {0}; 
     size_t serial_buffer_len = 0;                    
 
     while (1) {
-        uint8_t response[256] = {0};
+        uint8_t response[512] = {0};
         ssize_t received = read_serial_data(ctx->serial_fd, response, sizeof(response));
 
         if (received <= 0) {
@@ -237,7 +262,6 @@ void readMasterArm(struct driver_context* ctx) {
                     continue;
                 }
 
-                // Print decoded data (excluding CRC if applicable)
                 printf("Decoded data: ");
                 float dataValue = 0.0f;
                 memcpy(&dataValue, decodedResponse.data, sizeof(float));
@@ -256,6 +280,8 @@ void readMasterArm(struct driver_context* ctx) {
         usleep(1000);
     }
 }
+
+
 
 
 

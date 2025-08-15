@@ -7,7 +7,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 
-#define SERIAL_BUFFER_SIZE 256
+#define SERIAL_BUFFER_SIZE 1024
 #define BAUDRATE B115200
 
 struct packet {
