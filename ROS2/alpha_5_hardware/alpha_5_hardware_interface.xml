@@ -1,0 +1,9 @@
+<library path="alpha_5_hardware">
+  <class name="alpha_5_hardware/Alpha5HardwareInterface"
+         type="alpha_5_hardware::Alpha5HardwareInterface"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      Hardware interface for Reach Robotics Alpha 5 robotic arm
+    </description>
+  </class>
+</library>
